@@ -7,7 +7,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "app.armada"
+        applicationId = "io.github.berketket.armada"
         minSdk = 29
         targetSdk = 35
         versionCode = 1
