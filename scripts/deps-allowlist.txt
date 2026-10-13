@@ -1,2 +1,11 @@
+[runtime]
+# Kotlin standard library
 org.jetbrains.kotlin:kotlin-stdlib:2.4.10
+# Transitive dependency of kotlin-stdlib:2.4.10
+org.jetbrains:annotations:13.0
+
+[test]
+# Test framework
 junit:junit:4.13.2
+# Transitive dependency of junit:4.13.2
+org.hamcrest:hamcrest-core:1.3
