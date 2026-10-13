@@ -40,3 +40,18 @@ End every task with a report containing:
 2. Commands you ran and their actual output.
 3. Anything that deviated from the brief, and why.
 4. Open questions and anything you noticed but did not touch.
+
+**Publishing and reports**
+
+The repository is public on GitHub. The human does not upload files to Claude. Claude reads your work from GitHub, so every finished task ends with a push.
+
+Before you push, check that nothing sensitive is going out. The repo is public: no secrets, tokens, keystores or local.properties; no real device identifiers, phone numbers, IP or MAC addresses from the human's network, and no captured traffic. Any sample data in tests or docs is made up or scrubbed.
+
+First push only: if there is no remote named origin, create the repository with the gh CLI: `gh repo create armada --public --source=. --remote=origin --push`. If the name is taken or gh fails, stop and report. Do not improvise.
+
+At the end of every task:
+1. Write the report (format above) to docs/reports/<brief id>.md, with real command output in it, and commit it.
+2. Push all commits to origin. Report the real result of the push, not an assumption.
+3. In your final chat message, print exactly these, with real values filled in: the repo URL; the report as a commit-pinned raw URL (https://raw.githubusercontent.com/OWNER/REPO/FULL_SHA/docs/reports/<brief id>.md); and the whole task as a diff URL (https://github.com/OWNER/REPO/compare/BASE_SHA...HEAD_SHA.diff), where BASE_SHA is the commit before your first commit of the task and HEAD_SHA is the pushed head. Get OWNER/REPO with `gh repo view --json nameWithOwner -q .nameWithOwner` and full SHAs with `git rev-parse`.
+
+This replaces any wording in a brief about pasting output to the human: the content goes in the report file.
