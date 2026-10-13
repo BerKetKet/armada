@@ -18,3 +18,10 @@ Enforce dependency rules:
 ```bash
 scripts/check-deps.sh
 ```
+
+## Updating dependencies
+
+Gradle dependency verification checksums are enforced via `gradle/verification-metadata.xml`. To regenerate verification metadata with sha256 checksums across all modules and configurations:
+```bash
+./gradlew --write-verification-metadata sha256 assembleDebug :proto:test :app:dependencies :daemon:dependencies :cli:dependencies :proto:dependencies
+```
