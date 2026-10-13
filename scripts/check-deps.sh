@@ -45,12 +45,34 @@ if [ ${#RUNTIME_ALLOWED[@]} -eq 0 ]; then
     exit 1
 fi
 
+CFG_REGEX='^[a-zA-Z0-9_]*(Implementation|Api|CompileOnly|RuntimeOnly)$|^(implementation|api|compileOnly|runtimeOnly)$'
+ADD_REGEX='add[[:space:]]*\([[:space:]]*["'\'']([^"'\'']+)["'\''][[:space:]]*,[[:space:]]*["'\'']([^"'\'']+)["'\'']'
+CALL_REGEX='([a-zA-Z0-9_]+)[[:space:]]*\([[:space:]]*["'\'']([^"'\'']+)["'\'']'
+
 while IFS= read -r build_file; do
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ (implementation|api|compileOnly|runtimeOnly|testImplementation|testCompileOnly|testRuntimeOnly|androidTestImplementation)[[:space:]]*\([[:space:]]*[\"\']([^\"\']+)[\"\'] ]]; then
-            config="${BASH_REMATCH[1]}"
-            coord="${BASH_REMATCH[2]}"
+        matched=0
+        config=""
+        coord=""
+        if [[ "$line_content" =~ $ADD_REGEX ]]; then
+            c="${BASH_REMATCH[1]}"
+            k="${BASH_REMATCH[2]}"
+            if [[ "$c" =~ $CFG_REGEX ]]; then
+                config="$c"
+                coord="$k"
+                matched=1
+            fi
+        elif [[ "$line_content" =~ $CALL_REGEX ]]; then
+            c="${BASH_REMATCH[1]}"
+            k="${BASH_REMATCH[2]}"
+            if [[ "$c" =~ $CFG_REGEX ]]; then
+                config="$c"
+                coord="$k"
+                matched=1
+            fi
+        fi
 
+        if [ "$matched" -eq 1 ]; then
             in_runtime=0
             for a in "${RUNTIME_ALLOWED[@]}"; do
                 if [ "$a" = "$coord" ]; then in_runtime=1; break; fi
@@ -61,19 +83,19 @@ while IFS= read -r build_file; do
                 if [ "$a" = "$coord" ]; then in_test=1; break; fi
             done
 
-            if [[ "$config" =~ ^test ]]; then
+            if [[ "$config" =~ [tT]est ]]; then
                 if [ "$in_test" -eq 0 ] && [ "$in_runtime" -eq 0 ]; then
-                    echo "ERROR [text scan]: Disallowed test dependency '$coord' found in $build_file:$line_num" >&2
+                    echo "ERROR [text scan]: Disallowed test dependency '$coord' found in $build_file:$line_num ($config)" >&2
                     ERRORS=$((ERRORS + 1))
                 fi
             else
                 if [ "$in_runtime" -eq 0 ]; then
-                    echo "ERROR [text scan]: Disallowed runtime dependency '$coord' found in $build_file:$line_num" >&2
+                    echo "ERROR [text scan]: Disallowed runtime dependency '$coord' found in $build_file:$line_num ($config)" >&2
                     ERRORS=$((ERRORS + 1))
                 fi
             fi
         fi
-    done < <(grep -n -E '^[[:space:]]*(implementation|api|compileOnly|runtimeOnly|testImplementation|testCompileOnly|testRuntimeOnly|androidTestImplementation)[[:space:]]*\([[:space:]]*["'\''][^"'\'']+["'\'']' "$build_file" || true)
+    done < <(grep -n -E '(Implementation|Api|CompileOnly|RuntimeOnly|implementation|api|compileOnly|runtimeOnly|add)' "$build_file" || true)
 done < <(find "$REPO_ROOT" -name "build.gradle.kts" -not -path "*/build/*")
 
 # -----------------------------------------------------------------------------
@@ -92,11 +114,12 @@ check_graph() {
         return
     fi
 
+    # POSIX awk only (portable across gawk and mawk)
     local parsed_coords
     parsed_coords="$(echo "$raw_output" | awk '
         /--- [a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+/ {
             line = $0
-            sub(/^[| \\+---]+/, "", line)
+            sub(/^[| \\+-]+/, "", line)
             sub(/[ \t]*\(\*\).*/, "", line)
             sub(/[ \t]*\([a-z]\).*/, "", line)
             if (line ~ / -> /) {
@@ -140,8 +163,11 @@ check_graph() {
 }
 
 check_graph ":app" "debugRuntimeClasspath" 0
+check_graph ":app" "releaseRuntimeClasspath" 0
 check_graph ":daemon" "debugRuntimeClasspath" 0
+check_graph ":daemon" "releaseRuntimeClasspath" 0
 check_graph ":cli" "debugRuntimeClasspath" 0
+check_graph ":cli" "releaseRuntimeClasspath" 0
 check_graph ":proto" "runtimeClasspath" 0
 check_graph ":proto" "testRuntimeClasspath" 1
 
@@ -187,6 +213,7 @@ if [ ${#ALLOWED_PACKAGES[@]} -eq 0 ]; then
 fi
 
 apk_class_count=0
+# POSIX awk only (no 3-argument match gawk extension)
 while read -r class_desc flags; do
     [ -z "$class_desc" ] && continue
     apk_class_count=$((apk_class_count + 1))
@@ -209,8 +236,9 @@ while read -r class_desc flags; do
     fi
 done < <("$DEXDUMP" "$APK" | awk '
     /Class descriptor/ {
-        match($0, /L([^;]+);/, arr)
-        desc = arr[1]
+        if (match($0, /L[^;]+;/)) {
+            desc = substr($0, RSTART + 1, RLENGTH - 2)
+        }
     }
     /Access flags/ {
         flags = $0
