@@ -55,3 +55,7 @@ At the end of every task:
 3. In your final chat message, print exactly these, with real values filled in: the repo URL; the report as a commit-pinned raw URL (https://raw.githubusercontent.com/OWNER/REPO/FULL_SHA/docs/reports/<brief id>.md); and the whole task as a diff URL (https://github.com/OWNER/REPO/compare/BASE_SHA...HEAD_SHA.diff), where BASE_SHA is the commit before your first commit of the task and HEAD_SHA is the pushed head. Get OWNER/REPO with `gh repo view --json nameWithOwner -q .nameWithOwner` and full SHAs with `git rev-parse`.
 
 This replaces any wording in a brief about pasting output to the human: the content goes in the report file.
+
+**Correction to the publishing rule**
+
+github.com diff and compare URLs cannot be opened by Claude, because GitHub blocks automated access to them. Do not print a diff URL. Instead, in the final chat message, print one commit-pinned raw URL per line (https://raw.githubusercontent.com/OWNER/REPO/FULL_SHA/path) for every source file the task created or changed. Leave out lockfiles, the wrapper jar, binaries and generated files. The report URL stays as before.
