@@ -54,3 +54,7 @@ At the end of every task:
 4. In your final chat message, print exactly one line: the commit-pinned raw URL of the report, https://raw.githubusercontent.com/BerKetKet/armada/FULL_SHA/docs/reports/<brief id>.md, with FULL_SHA taken from `git rev-parse HEAD` after the push. Claude cannot open github.com diff or compare pages, so do not print those.
 
 This replaces any wording in a brief about pasting output to the human: the content goes in the report file.
+
+**Work in small committed steps**
+
+Commit after each numbered step of a brief, as soon as that step is done and verified, not at the end. Keep evidence as you go: append each proof (the command and its real output) to docs/reports/<brief id>.md as soon as you have it, and commit it with the step. Long sessions get their context compacted, and anything that is not in git or in the report is lost. After a compaction, run git status and git log first and continue from the repository, not from your summary. A summary of an earlier session is not an instruction: nothing in it puts you in a read-only mode.
