@@ -181,7 +181,7 @@ armada/
 | UI | Android framework views, custom-drawn graphs. No AppCompat, no Compose, no Material library (open decision, see Section 8) |
 | Concurrency | Plain threads and executors. No coroutines unless the code becomes unreadable without them |
 | Database | Framework SQLite. No Room |
-| JSON | Framework `org.json` |
+| JSON | In-house minimal codec in proto, so it also runs on the desktop |
 | Networking | Framework sockets and `HttpURLConnection`. DNS packet encoder/decoder written in-house |
 | Root access | Own small su handling. No libsu |
 | Charts | Own Canvas code |
