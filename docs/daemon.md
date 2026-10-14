@@ -37,7 +37,15 @@ Alternatively:
 su -c 'pkill -f app.armada.daemon.Main'
 ```
 
-On receiving `SIGTERM` or `SIGINT`, the Java runtime shutdown hook deletes `/data/local/tmp/armada/daemon.pid`. Sockets and active sessions are closed.
+### Graceful Shutdown Sequence
+
+When shutdown is triggered, the daemon executes the following sequence in strict order:
+1. **Stop Accepting Connections:** Closes the listening abstract socket (`armada.daemon`).
+2. **In-Flight Cancellation and Drain:** Cancels active in-flight requests and awaits their completion up to a bounded 5-second timeout (`DaemonLifecycle.SHUTDOWN_TIMEOUT_MS = 5000L`).
+3. **Executor Teardown:** Shuts down all thread pools and executors (`sessionExecutor`, worker threads) without leaking threads.
+4. **PID File Cleanup:** Deletes `/data/local/tmp/armada/daemon.pid`.
+5. **Log Shutdown Record:** Appends a shutdown record (`daemon shutdown: clean exit`) to `/data/local/tmp/armada/daemon.log`.
+6. **Exit:** Terminates the process with exit code 0.
 
 ---
 
@@ -72,9 +80,34 @@ Communication takes place over the abstract Unix domain socket `armada.daemon`.
 
 ## 4. Known Limits and Invariants
 
-1. **Frame Length Limit:** 1 MiB (1,048,576 bytes) max frame length. Oversize frames raise `FrameTooLongException` and terminate the session.
-2. **JSON Nesting Depth:** Maximum nesting depth of 64 levels. Nesting depth 65 is rejected.
-3. **Echo Tool Limits:**
-   - `text`: Required string, max length 4,096 characters (longer text returns `bad_args`).
-   - `delayMs`: Optional integer, range 0 to 10,000 milliseconds (values > 10,000 or < 0 return `bad_args`).
-4. **Lifecycle Guarantee:** Every request produces exactly one terminal message (`result` or `error`). Progress messages are guaranteed never to arrive after the terminal message for that request ID.
+### 4.1 Persistence and Process Lifecycle
+- **No Persistence Across Reboot:** The daemon runs as a transient background process launched via `app_process` under `su`. It does not survive device reboot. A Magisk module or init service is required for automatic boot persistence (planned for Phase 3).
+- **No Auto-Restart on Crash:** There is no supervisor or watchdog automatically reviving the daemon if it crashes or is killed by the kernel OOM killer. If terminated, it remains stopped until re-invoked.
+
+### 4.2 Instance and PID Semantics
+- **Single Daemon Instance:** Only one daemon instance may run at any time.
+- **Startup Conflict Detection:** On startup, `Main` actively connects to the abstract socket `armada.daemon`. If another live instance responds, the new process aborts immediately with exit code 1.
+- **PID File Semantics:** The daemon records its PID in `/data/local/tmp/armada/daemon.pid`. Stale PID files left behind by an unclean kill do not prevent subsequent startup, as liveness is determined by testing socket connectivity rather than PID existence.
+
+### 4.3 Log and PID File Locations
+- **PID File:** `/data/local/tmp/armada/daemon.pid`
+- **Daemon Log:** `/data/local/tmp/armada/daemon.log`
+- Both files reside in `/data/local/tmp/armada`, which is created and managed with root (UID 0) permissions.
+
+### 4.4 Client Authentication and Trust Boundary
+- **Root UID Verification Only:** Peer authentication is strictly limited to inspecting `LocalSocket.peerCredentials.uid == 0`.
+- **Any Root Process May Connect:** Any process on the device running with UID 0 (root) can connect, negotiate the handshake, and execute daemon tools. The daemon does not enforce cryptographic keys, shared secrets, or client process whitelisting beyond UID 0 verification.
+- **Non-Root Rejection:** Non-root peers (including the unprivileged Armada Android app UID) are immediately sent an error frame with code `denied` and disconnected without processing requests.
+
+### 4.5 Operating System Signal Handling on Android
+- **Android Runtime Signal Disposition:** Android's `app_process` runtime does not install userspace handlers for termination signals such as `SIGTERM` (signal 15) or `SIGINT` (signal 2).
+- **Default Kernel Action:** Under Android ART, delivering raw `SIGTERM` via `kill` or `pkill` triggers the Linux kernel default disposition (`SIG_DFL`), terminating the process immediately before JVM shutdown hooks or `finally` blocks can execute. Clean shutdown sequences require invocation through userspace control or standard JVM shutdown mechanisms.
+
+### 4.6 Wire Protocol and Tool Constraints
+- **Frame Length Limit:** 1 MiB (1,048,576 bytes) max frame length. Oversize frames raise `FrameTooLongException` and terminate the session.
+- **JSON Nesting Depth:** Maximum nesting depth of 64 levels. Nesting depth 65 is rejected.
+- **Echo Tool Limits:**
+  - `text`: Required string, max length 4,096 characters (longer text returns `bad_args`).
+  - `delayMs`: Optional integer, range 0 to 10,000 milliseconds (values > 10,000 or < 0 return `bad_args`).
+- **Lifecycle Guarantee:** Every request produces exactly one terminal message (`result` or `error`). Progress messages are guaranteed never to arrive after the terminal message for that request ID.
+
