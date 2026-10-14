@@ -250,6 +250,35 @@ class MessagesTest {
     }
 
     @Test
+    fun helloVersionRangeEnforcement() {
+        // v = 1 is accepted
+        val hello1 = Messages.decode("{\"type\":\"hello\",\"v\":1}")
+        assertEquals(Message.Hello(1), hello1)
+
+        // v = 2147483647 is accepted (Int.MAX_VALUE)
+        val helloMax = Messages.decode("{\"type\":\"hello\",\"v\":2147483647}")
+        assertEquals(Message.Hello(Int.MAX_VALUE), helloMax)
+
+        // Rejected values
+        val rejectedVersions = listOf(
+            0L,
+            -1L,
+            2147483648L, // Int.MAX_VALUE + 1
+            4294967296L, // 2^32
+            4294967297L  // 2^32 + 1
+        )
+
+        for (badV in rejectedVersions) {
+            try {
+                Messages.decode("{\"type\":\"hello\",\"v\":$badV}")
+                fail("Version $badV must be rejected")
+            } catch (e: ProtocolException) {
+                assertEquals(Protocol.BAD_REQUEST, e.code)
+            }
+        }
+    }
+
+    @Test
     fun nonObjectMessageIsRejected() {
         val nonObjects = listOf(
             "\"string\"",

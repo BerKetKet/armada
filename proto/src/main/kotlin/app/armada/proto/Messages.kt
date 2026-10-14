@@ -93,11 +93,11 @@ object Messages {
                 if (vVal !is JsonNumber || !vVal.isLong) {
                     throw ProtocolException(Protocol.BAD_REQUEST, "Field 'v' must be an integer")
                 }
-                val v = vVal.longValue!!.toInt()
-                if (v < 1) {
-                    throw ProtocolException(Protocol.BAD_REQUEST, "Field 'v' must be >= 1")
+                val vLong = vVal.longValue!!
+                if (vLong < 1L || vLong > Int.MAX_VALUE.toLong()) {
+                    throw ProtocolException(Protocol.BAD_REQUEST, "Field 'v' must be between 1 and ${Int.MAX_VALUE}")
                 }
-                Message.Hello(v)
+                Message.Hello(vLong.toInt())
             }
             "request" -> {
                 val id = extractId(root)
