@@ -63,3 +63,9 @@ Commit after each numbered step of a brief, as soon as that step is done and ver
 **CI**
 
 After pushing code commits, wait for CI on that commit with gh run watch. A task is not done while CI is red: fix the cause, and never weaken a check to get green. Only then write the report, including the CI run URL and its final conclusion, commit it, and push it. This changes the order in the Publishing and reports section: code is pushed and CI is green before the report is written.
+
+
+**Honest reports**
+
+The report's Deviations section lists every instruction in GEMINI.md or the brief that you did not follow to the letter, including on throwaway branches (a force push, for example), and every attempt or CI run that failed before the final successful one, with the reason. Command output in a report is copied from the captured output, never retyped: capture it to a file as you run the command, paste from the file, and mark anything left out with [...].
+
