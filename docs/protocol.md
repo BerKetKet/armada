@@ -135,7 +135,7 @@ Error codes form a closed set of string constants:
 
 ## 7. Handshake and Connection Errors
 
-- **Daemon Greeting:** Upon establishing a connection, the daemon sends `{"type":"hello","v":1}` first.
+- **Daemon Greeting:** Upon establishing a connection, for a root peer the daemon sends `{"type":"hello","v":1}` first. For a peer that is not root, the daemon sends only the denied error (id `"handshake"`) and closes, with no hello. A client which receives an error frame in place of the hello treats it as the handshake outcome. The protocol version stays 1 because nothing is released yet.
 - **Client Greeting:** The client must reply with a `hello` message whose `v` equals `Protocol.VERSION`. Otherwise the daemon closes the connection.
 - **Connection-Level Errors:** A connection-level error uses `id` `"handshake"`, so it fits the `Failure` shape: `{"type":"error","id":"handshake","code":"<code >","message":"..."}`. The daemon sends it and closes the connection. Error codes used this way are `denied` (for example, when a peer is not root) and `bad_request` (such as invalid handshake framing or protocol violation) only.
 - **Duplicate In-Flight Identifier:** If a client sends a second request with an `id` that matches a currently in-flight request, the daemon answers the second request with `{"type":"error","id":"<that id>","code":"bad_request","message":"duplicate in-flight id"}` and leaves the first request running.

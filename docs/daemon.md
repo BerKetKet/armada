@@ -45,10 +45,10 @@ On receiving `SIGTERM` or `SIGINT`, the Java runtime shutdown hook deletes `/dat
 
 Communication takes place over the abstract Unix domain socket `armada.daemon`.
 
-1. **Daemon Greeting:** Upon accepting a new client connection, the daemon sends `{"type":"hello","v":1}`.
+1. **Daemon Greeting:** Upon accepting a new client connection, for a root peer the daemon sends `{"type":"hello","v":1}` first. For a peer that is not root, the daemon sends only the denied error (id `"handshake"`) and closes, with no hello. A client which receives an error frame in place of the hello treats it as the handshake outcome. The protocol version stays 1 because nothing is released yet.
 2. **Root Credential Enforcement:**
    - The daemon inspects peer credentials using `LocalSocket.getPeerCredentials()`.
-   - If `peer.uid != 0`, the daemon immediately sends a handshake error and closes the connection without processing any client frames:
+   - If `peer.uid != 0`, the daemon immediately sends only the denied handshake error (with no hello) and closes the connection without processing any client frames:
      ```json
      {"type":"error","id":"handshake","code":"denied","message":"peer is not root"}
      ```
