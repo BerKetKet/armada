@@ -16,6 +16,7 @@ class MainActivity : Activity() {
         private const val TAG = "ArmadaApp"
     }
 
+    private val gate = StatusCheckGate()
     private lateinit var statusTitleView: TextView
     private lateinit var statusDetailView: TextView
 
@@ -65,10 +66,13 @@ class MainActivity : Activity() {
     }
 
     private fun checkDaemonInBackground() {
+        val token = gate.begin()
         Thread {
             val status = queryDaemonStatus()
             runOnUiThread {
-                updateUi(status)
+                if (gate.isCurrent(token) && !isFinishing && !isDestroyed) {
+                    updateUi(status)
+                }
             }
         }.start()
     }
@@ -84,13 +88,19 @@ class MainActivity : Activity() {
         } catch (e: Throwable) {
             android.util.Log.e(TAG, "daemon connect failed", e)
             try { socket.close() } catch (ignored: Exception) {}
-            DaemonStatus.Unreachable(e.javaClass.simpleName)
+            DaemonStatus.Unreachable(e.javaClass.simpleName, e.message)
         }
 
         val statusLine = when (status) {
             is DaemonStatus.Connected -> "status=Connected version=${status.version}"
             is DaemonStatus.Denied -> "status=Denied"
-            is DaemonStatus.Unreachable -> "status=Unreachable exception=${status.exceptionClass}"
+            is DaemonStatus.Unreachable -> {
+                if (status.detail != null) {
+                    "status=Unreachable exception=${status.exceptionClass} detail=${status.detail}"
+                } else {
+                    "status=Unreachable exception=${status.exceptionClass}"
+                }
+            }
         }
         android.util.Log.i(TAG, statusLine)
 
@@ -109,7 +119,11 @@ class MainActivity : Activity() {
             }
             is DaemonStatus.Unreachable -> {
                 statusTitleView.text = "Daemon not reachable"
-                statusDetailView.text = status.exceptionClass
+                statusDetailView.text = if (status.detail != null) {
+                    "${status.exceptionClass}: ${status.detail}"
+                } else {
+                    status.exceptionClass
+                }
             }
         }
     }
