@@ -8,7 +8,9 @@ The Armada wire protocol defines communication between clients (the Android UI a
 
 ## 1. Framing and Transport
 
+- **Transport:** Unix domain stream socket in Linux abstract namespace (`armada.daemon`, `LocalSocketAddress.Namespace.ABSTRACT`). No filesystem node is created.
 - **Encoding:** Strict UTF-8. Malformed UTF-8 sequences are rejected as framing errors.
+- **Codec:** In-house line-delimited JSON codec implemented in `:proto` (`app.armada.proto.FrameReader`, `FrameWriter`, `JsonParser`, `JsonWriter`).
 - **Surrogates:** Encoders reject lone surrogates.
 - **Framing:** Line-delimited. Each frame is a single UTF-8 line terminated by `\n` (0x0A) or optional `\r\n` (0x0D 0x0A).
 - **Line Contents:** A single compact JSON object. No raw newline characters may appear within a frame.
@@ -140,3 +142,60 @@ Error codes form a closed set of string constants:
 - **Connection-Level Errors:** A connection-level error uses `id` `"handshake"`, so it fits the `Failure` shape: `{"type":"error","id":"handshake","code":"<code >","message":"..."}`. The daemon sends it and closes the connection. Error codes used this way are `denied` (for example, when a peer is not root) and `bad_request` (such as invalid handshake framing or protocol violation) only.
 - **Duplicate In-Flight Identifier:** If a client sends a second request with an `id` that matches a currently in-flight request, the daemon answers the second request with `{"type":"error","id":"<that id>","code":"bad_request","message":"duplicate in-flight id"}` and leaves the first request running.
 - **Cancellation of Non-In-Flight Identifier:** A `cancel` message for an `id` that is not currently in flight is silently ignored. This prevents race conditions where a client cancels an operation that has already completed and whose terminal response has crossed the wire.
+
+---
+
+## 8. Registered Tools and Frame Shapes
+
+### 8.1 Echo Tool (`echo`)
+
+Used for end-to-end verification and latency / cancellation tests.
+
+#### Request Shape
+```json
+{"type":"request","id":"e1","tool":"echo","args":{"text":"sample text","delayMs":50}}
+```
+- `text` (string, required): String to echo back (1..4096 characters).
+- `delayMs` (integer, optional): Sleep duration in milliseconds before replying (0..10,000 ms, default 0).
+
+#### Progress Shape (emitted only when `delayMs > 0`)
+```json
+{"type":"progress","id":"e1","data":{"seq":1,"elapsedMs":52}}
+```
+- `seq` (integer): Progress sequence counter (starts at 1).
+- `elapsedMs` (integer): Milliseconds elapsed since the delay began.
+
+#### Result Shape
+```json
+{"type":"result","id":"e1","data":{"text":"sample text"}}
+```
+- `text` (string): Exact echoed text.
+
+---
+
+## 9. Command-Line Client Operations
+
+The CLI client (`app.armada.cli.Main` / `armada-cli`) connects to the daemon abstract socket `armada.daemon` and executes commands synchronously from the command line.
+
+### 9.1 `hello`
+Verifies daemon connectivity and protocol compatibility.
+
+- **Syntax:** `armada-cli hello`
+- **Wire interaction:** Exchanges `hello` handshake frames with `v=1`.
+- **Output on stdout:**
+  ```json
+  {"v":1}
+  ```
+- **Exit code:** 0 on success, 1 on daemon or connection failure, 2 on syntax error.
+
+### 9.2 `echo`
+Tests round-trip request handling and optional delays.
+
+- **Syntax:** `armada-cli echo <text> [--delay-ms N]` (or `--delay-ms=N`)
+- **Wire interaction:** Performs handshake, sends `request` frame for tool `"echo"`, awaits terminal `result` frame (ignoring intermediate progress).
+- **Output on stdout:**
+  ```json
+  {"text":"<echoed text>"}
+  ```
+- **Exit code:** 0 on success, 1 on daemon or connection failure, 2 on invalid arguments or missing text.
+
