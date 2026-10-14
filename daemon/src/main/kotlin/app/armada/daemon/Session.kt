@@ -12,6 +12,7 @@ import app.armada.proto.Messages
 import app.armada.proto.Protocol
 import app.armada.proto.ProtocolException
 import app.armada.proto.TruncatedFrameException
+import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -23,7 +24,7 @@ class Session(
     private val peerIsRoot: Boolean,
     private val tools: Map<String, Tool>,
     private val executor: ExecutorService = Executors.newCachedThreadPool()
-) {
+) : Closeable {
     private val writeLock = Any()
     private val dispatcher = Dispatcher(tools)
     private val inFlight = ConcurrentHashMap<String, RequestTask>()
@@ -267,10 +268,36 @@ class Session(
         writer.writeFrame(text)
     }
 
-    private fun cleanup() {
+    fun cancelInFlight() {
         for (task in inFlight.values) {
             task.cancel()
         }
+    }
+
+    fun hasInFlightRequests(): Boolean = inFlight.isNotEmpty()
+
+    fun awaitInFlight(timeoutMs: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (inFlight.isNotEmpty()) {
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0) return false
+            try {
+                Thread.sleep(minOf(20L, remaining))
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return false
+            }
+        }
+        return true
+    }
+
+    override fun close() {
+        cleanup()
+    }
+
+    private fun cleanup() {
+        cancelInFlight()
+        DaemonLifecycle.shutdownExecutor(executor, DaemonLifecycle.SHUTDOWN_TIMEOUT_MS)
         inFlight.clear()
     }
 }

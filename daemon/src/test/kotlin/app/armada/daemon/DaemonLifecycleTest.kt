@@ -50,4 +50,49 @@ class DaemonLifecycleTest {
         assertTrue(DaemonLifecycle.isSocketAlive { true })
         assertFalse(DaemonLifecycle.isSocketAlive { false })
     }
+
+    @Test
+    fun shutdownTimeoutConstantIsFiveSeconds() {
+        assertEquals(5000L, DaemonLifecycle.SHUTDOWN_TIMEOUT_MS)
+    }
+
+    @Test
+    fun appendShutdownRecordAppendsToFileAndCreatesParentDirs() {
+        val logFile = File(tmpFolder.root, "nested/dir/daemon.log")
+        DaemonLifecycle.appendShutdownRecord(logFile, "daemon shutdown: clean exit")
+        assertTrue(logFile.exists())
+        assertEquals("daemon shutdown: clean exit\n", logFile.readText())
+
+        DaemonLifecycle.appendShutdownRecord(logFile, "second record")
+        assertEquals("daemon shutdown: clean exit\nsecond record\n", logFile.readText())
+    }
+
+    @Test
+    fun shutdownExecutorTerminatesCleanly() {
+        val exec = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val ran = java.util.concurrent.atomic.AtomicBoolean(false)
+        exec.execute { ran.set(true) }
+
+        val clean = DaemonLifecycle.shutdownExecutor(exec, 1000L)
+        assertTrue(clean)
+        assertTrue(exec.isTerminated)
+        assertTrue(ran.get())
+    }
+
+    @Test
+    fun shutdownExecutorForcesTerminationOnTimeout() {
+        val exec = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val started = java.util.concurrent.CountDownLatch(1)
+        exec.execute {
+            started.countDown()
+            try {
+                Thread.sleep(10000L)
+            } catch (ignored: InterruptedException) {
+            }
+        }
+
+        assertTrue(started.await(1, java.util.concurrent.TimeUnit.SECONDS))
+        val clean = DaemonLifecycle.shutdownExecutor(exec, 100L)
+        assertTrue(exec.isTerminated)
+    }
 }

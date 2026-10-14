@@ -10,6 +10,7 @@ import kotlin.system.exitProcess
 class Main {
     companion object {
         val PID_FILE: File = File(DaemonLifecycle.PID_PATH)
+        val LOG_FILE: File = File(DaemonLifecycle.LOG_PATH)
 
         @JvmStatic
         fun main(args: Array<String>) {
@@ -31,16 +32,17 @@ class Main {
                 System.err.println("Warning: Failed to write pid file: ${e.message}")
             }
 
-            Runtime.getRuntime().addShutdownHook(Thread {
-                DaemonLifecycle.removePidFile(PID_FILE)
-            })
-
             val server = Server()
+            Runtime.getRuntime().addShutdownHook(Thread({
+                server.shutdown(PID_FILE, LOG_FILE)
+            }, "armada-shutdown"))
+
             try {
                 server.start()
             } finally {
-                DaemonLifecycle.removePidFile(PID_FILE)
+                server.shutdown(PID_FILE, LOG_FILE)
             }
+            exitProcess(0)
         }
 
         private fun isLiveDaemonRunning(): Boolean {
