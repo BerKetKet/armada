@@ -11,7 +11,7 @@ import java.io.OutputStream
 sealed class DaemonStatus {
     data class Connected(val version: Int) : DaemonStatus()
     object Denied : DaemonStatus()
-    data class Unreachable(val exceptionClass: String) : DaemonStatus()
+    data class Unreachable(val exceptionClass: String, val detail: String? = null) : DaemonStatus()
 }
 
 object DaemonClassifier {
@@ -23,32 +23,33 @@ object DaemonClassifier {
             val writer = FrameWriter(outputStream)
 
             val firstLine = reader.readFrame()
-                ?: return DaemonStatus.Unreachable("EOFException")
+                ?: return DaemonStatus.Unreachable("EOFException", "peer closed before greeting")
             val firstMsg = try {
                 Messages.decode(firstLine)
             } catch (e: Exception) {
-                return DaemonStatus.Unreachable(e.javaClass.simpleName)
+                return DaemonStatus.Unreachable(e.javaClass.simpleName, e.message)
             }
 
             if (firstMsg is Message.Failure) {
                 return if (firstMsg.code == Protocol.DENIED) {
                     DaemonStatus.Denied
                 } else {
-                    DaemonStatus.Unreachable("ProtocolException")
+                    DaemonStatus.Unreachable("ProtocolException", firstMsg.message)
                 }
             }
 
             if (firstMsg !is Message.Hello) {
-                return DaemonStatus.Unreachable("ProtocolException")
+                return DaemonStatus.Unreachable("ProtocolException", "expected hello")
             }
 
             val version = firstMsg.v
 
             // Send Hello back
+            var writeException: Exception? = null
             try {
                 writer.writeFrame(Messages.encode(Message.Hello(Protocol.VERSION)))
             } catch (e: Exception) {
-                return DaemonStatus.Unreachable(e.javaClass.simpleName)
+                writeException = e
             }
 
             // Check if daemon sent a denied error frame
@@ -69,9 +70,13 @@ object DaemonClassifier {
                 }
             }
 
+            if (writeException != null) {
+                return DaemonStatus.Unreachable(writeException.javaClass.simpleName, writeException.message)
+            }
+
             DaemonStatus.Connected(version)
         } catch (e: Throwable) {
-            DaemonStatus.Unreachable(e.javaClass.simpleName)
+            DaemonStatus.Unreachable(e.javaClass.simpleName, e.message)
         }
     }
 }

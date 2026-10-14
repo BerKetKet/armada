@@ -7,6 +7,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 
 class DaemonClassifierTest {
@@ -92,5 +93,48 @@ class DaemonClassifierTest {
         val status = DaemonClassifier.classifyStreams(failingStream, outStream)
         assertTrue(status is DaemonStatus.Unreachable)
         assertEquals("IOException", (status as DaemonStatus.Unreachable).exceptionClass)
+    }
+
+    @Test
+    fun classifyReturnsDeniedWhenWritingHelloFailsButDeniedFrameFollows() {
+        val serverInput = ("{\"type\":\"hello\",\"v\":1}\n" +
+                "{\"type\":\"error\",\"id\":\"handshake\",\"code\":\"denied\",\"message\":\"peer is not root\"}\n")
+            .toByteArray(StandardCharsets.UTF_8)
+        val inStream = ByteArrayInputStream(serverInput)
+        val throwingOutStream = object : OutputStream() {
+            override fun write(b: Int): Unit = throw IOException("Broken pipe")
+            override fun write(b: ByteArray, off: Int, len: Int): Unit = throw IOException("Broken pipe")
+        }
+
+        val status = DaemonClassifier.classifyStreams(inStream, throwingOutStream)
+        assertEquals(DaemonStatus.Denied, status)
+    }
+
+    @Test
+    fun classifyReturnsDeniedWhenOnlyDeniedFrameReceivedAndZeroBytesWritten() {
+        val serverInput = "{\"type\":\"error\",\"id\":\"handshake\",\"code\":\"denied\",\"message\":\"peer is not root\"}\n"
+            .toByteArray(StandardCharsets.UTF_8)
+        val inStream = ByteArrayInputStream(serverInput)
+        val recordingOutStream = ByteArrayOutputStream()
+
+        val status = DaemonClassifier.classifyStreams(inStream, recordingOutStream)
+        assertEquals(DaemonStatus.Denied, status)
+        assertEquals(0, recordingOutStream.size())
+    }
+
+    @Test
+    fun classifyReturnsUnreachableWhenWritingHelloFailsAndEofFollows() {
+        val serverInput = "{\"type\":\"hello\",\"v\":1}\n".toByteArray(StandardCharsets.UTF_8)
+        val inStream = ByteArrayInputStream(serverInput)
+        val throwingOutStream = object : OutputStream() {
+            override fun write(b: Int): Unit = throw IOException("Broken pipe")
+            override fun write(b: ByteArray, off: Int, len: Int): Unit = throw IOException("Broken pipe")
+        }
+
+        val status = DaemonClassifier.classifyStreams(inStream, throwingOutStream)
+        assertTrue(status is DaemonStatus.Unreachable)
+        val unreachable = status as DaemonStatus.Unreachable
+        assertEquals("IOException", unreachable.exceptionClass)
+        assertTrue(unreachable.detail != null && unreachable.detail.contains("Broken pipe"))
     }
 }
