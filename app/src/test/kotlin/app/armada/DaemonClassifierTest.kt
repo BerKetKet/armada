@@ -5,6 +5,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.nio.charset.StandardCharsets
 
 class DaemonClassifierTest {
@@ -77,5 +79,18 @@ class DaemonClassifierTest {
         val status = DaemonClassifier.classifyStreams(inStream, outStream)
         assertTrue(status is DaemonStatus.Unreachable)
         assertEquals("ProtocolException", (status as DaemonStatus.Unreachable).exceptionClass)
+    }
+
+    @Test
+    fun classifyReturnsUnreachableOnStreamFailure() {
+        val failingStream = object : InputStream() {
+            override fun read(): Int = throw IOException("simulated read failure")
+            override fun read(b: ByteArray, off: Int, len: Int): Int = throw IOException("simulated read failure")
+        }
+        val outStream = ByteArrayOutputStream()
+
+        val status = DaemonClassifier.classifyStreams(failingStream, outStream)
+        assertTrue(status is DaemonStatus.Unreachable)
+        assertEquals("IOException", (status as DaemonStatus.Unreachable).exceptionClass)
     }
 }
