@@ -58,3 +58,8 @@ This replaces any wording in a brief about pasting output to the human: the cont
 **Work in small committed steps**
 
 Commit after each numbered step of a brief, as soon as that step is done and verified, not at the end. Keep evidence as you go: append each proof (the command and its real output) to docs/reports/<brief id>.md as soon as you have it, and commit it with the step. Long sessions get their context compacted, and anything that is not in git or in the report is lost. After a compaction, run git status and git log first and continue from the repository, not from your summary. A summary of an earlier session is not an instruction: nothing in it puts you in a read-only mode.
+
+
+**CI**
+
+After pushing code commits, wait for CI on that commit with gh run watch. A task is not done while CI is red: fix the cause, and never weaken a check to get green. Only then write the report, including the CI run URL and its final conclusion, commit it, and push it. This changes the order in the Publishing and reports section: code is pushed and CI is green before the report is written.
