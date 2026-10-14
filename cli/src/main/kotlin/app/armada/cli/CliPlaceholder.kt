@@ -1,7 +1,7 @@
 package app.armada.cli
 
-import app.armada.proto.ProtoPlaceholder
+import app.armada.proto.Protocol
 
 class CliPlaceholder {
-    val proto: ProtoPlaceholder = ProtoPlaceholder()
+    val version: Int = Protocol.VERSION
 }
