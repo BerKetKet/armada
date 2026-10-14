@@ -69,3 +69,7 @@ After pushing code commits, wait for CI on that commit with gh run watch. A task
 
 The report's Deviations section lists every instruction in GEMINI.md or the brief that you did not follow to the letter, including on throwaway branches (a force push, for example), and every attempt or CI run that failed before the final successful one, with the reason. Command output in a report is copied from the captured output, never retyped: capture it to a file as you run the command, paste from the file, and mark anything left out with [...].
 
+
+**One push per code commit**
+
+Push after every code commit and wait for CI green on that commit before making the next one. Never push several code commits together. The report has a Pushes section that lists every push with its commit range and CI run, taken from captured gh run list output. A push that contained more than one code commit is a deviation and must be listed as one.
