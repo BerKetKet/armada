@@ -130,3 +130,13 @@ Error codes form a closed set of string constants:
   - Removing, renaming, or changing the type or semantics of an existing field.
   - Altering framing delimiters, JSON syntax constraints, or existing error codes.
   - Any incompatible change requires incrementing `Protocol.VERSION`.
+
+---
+
+## 7. Handshake and Connection Errors
+
+- **Daemon Greeting:** Upon establishing a connection, the daemon sends `{"type":"hello","v":1}` first.
+- **Client Greeting:** The client must reply with a `hello` message whose `v` equals `Protocol.VERSION`. Otherwise the daemon closes the connection.
+- **Connection-Level Errors:** A connection-level error uses `id` `"handshake"`, so it fits the `Failure` shape: `{"type":"error","id":"handshake","code":"<code >","message":"..."}`. The daemon sends it and closes the connection. Error codes used this way are `denied` (for example, when a peer is not root) and `bad_request` (such as invalid handshake framing or protocol violation) only.
+- **Duplicate In-Flight Identifier:** If a client sends a second request with an `id` that matches a currently in-flight request, the daemon answers the second request with `{"type":"error","id":"<that id>","code":"bad_request","message":"duplicate in-flight id"}` and leaves the first request running.
+- **Cancellation of Non-In-Flight Identifier:** A `cancel` message for an `id` that is not currently in flight is silently ignored. This prevents race conditions where a client cancels an operation that has already completed and whose terminal response has crossed the wire.

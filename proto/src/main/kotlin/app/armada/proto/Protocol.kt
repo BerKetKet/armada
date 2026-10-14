@@ -2,6 +2,7 @@ package app.armada.proto
 
 object Protocol {
     const val VERSION: Int = 1
+    const val HANDSHAKE_ID: String = "handshake"
 
     // Closed set of error codes
     const val BAD_REQUEST: String = "bad_request"
