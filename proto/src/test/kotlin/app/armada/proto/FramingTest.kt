@@ -131,4 +131,39 @@ class FramingTest {
             // Expected
         }
     }
+
+    @Test
+    fun nonBlankFrameTerminatedByCrLfIsReturnedWithoutCr() {
+        val input = "{\"type\":\"cancel\",\"id\":\"r1\"}\r\n"
+        val stream = ByteArrayInputStream(input.toByteArray(StandardCharsets.UTF_8))
+        val reader = FrameReader(stream)
+
+        assertEquals("{\"type\":\"cancel\",\"id\":\"r1\"}", reader.readFrame())
+        assertNull(reader.readFrame())
+    }
+
+    @Test
+    fun exactOneMiBFrameIsAcceptedAndOneByteMoreIsRejected() {
+        val exact1MiB = 1_048_576
+        val validBytes = ByteArray(exact1MiB + 1)
+        java.util.Arrays.fill(validBytes, 0, exact1MiB, 'a'.code.toByte())
+        validBytes[exact1MiB] = '\n'.code.toByte()
+
+        val validReader = FrameReader(ByteArrayInputStream(validBytes))
+        val frame = validReader.readFrame()
+        assertEquals(exact1MiB, frame!!.length)
+        assertNull(validReader.readFrame())
+
+        val oversizeBytes = ByteArray(exact1MiB + 2)
+        java.util.Arrays.fill(oversizeBytes, 0, exact1MiB + 1, 'a'.code.toByte())
+        oversizeBytes[exact1MiB + 1] = '\n'.code.toByte()
+
+        val invalidReader = FrameReader(ByteArrayInputStream(oversizeBytes))
+        try {
+            invalidReader.readFrame()
+            fail("Frame of 1,048,577 bytes must throw FrameTooLongException")
+        } catch (e: FrameTooLongException) {
+            // Expected
+        }
+    }
 }
