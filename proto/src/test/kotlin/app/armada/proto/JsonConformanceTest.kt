@@ -268,4 +268,71 @@ class JsonConformanceTest {
             )
         }
     }
+
+    @Test
+    fun writerRejectsLoneHighSurrogate() {
+        val badStrings = listOf(
+            "\uD800",
+            "\uD83D",
+            "\uD800abc",
+            "abc\uD800",
+            "\uD83D\u0041", // high surrogate followed by non-surrogate
+            "\uD800\uD800"  // two consecutive high surrogates
+        )
+        for (bad in badStrings) {
+            try {
+                JsonWriter.write(JsonString(bad))
+                fail("JsonWriter.write must reject lone high surrogate: $bad")
+            } catch (e: JsonException) {
+                assertTrue("JsonException must have valid position", e.position >= 0)
+            }
+        }
+    }
+
+    @Test
+    fun writerRejectsLoneLowSurrogate() {
+        val badStrings = listOf(
+            "\uDC00",
+            "\uDFFF",
+            "\uDC00abc",
+            "abc\uDC00",
+            "\uDC00\uD800" // low surrogate followed by high surrogate
+        )
+        for (bad in badStrings) {
+            try {
+                JsonWriter.write(JsonString(bad))
+                fail("JsonWriter.write must reject lone low surrogate: $bad")
+            } catch (e: JsonException) {
+                assertTrue("JsonException must have valid position", e.position >= 0)
+            }
+        }
+    }
+
+    @Test
+    fun writerAcceptsValidSurrogatePairAndRoundTrips() {
+        // U+1F600 (GRINNING FACE) represented as UTF-16 surrogate pair
+        val emoji = "\uD83D\uDE00"
+        val written = JsonWriter.write(JsonString(emoji))
+        assertEquals("\"$emoji\"", written)
+
+        val parsed = JsonParser.parse(written)
+        assertEquals(JsonString(emoji), parsed)
+
+        val rewritten = JsonWriter.write(parsed)
+        assertEquals(written, rewritten)
+    }
+
+    @Test
+    fun writerKeepsU2028AndU2029EscapedAndEqualOnRoundTrip() {
+        val s = "line\u2028separator and \u2029paragraph"
+        val written = JsonWriter.write(JsonString(s))
+        assertTrue(written.contains("\\u2028"))
+        assertTrue(written.contains("\\u2029"))
+
+        val parsed = JsonParser.parse(written)
+        assertEquals(JsonString(s), parsed)
+
+        val rewritten = JsonWriter.write(parsed)
+        assertEquals(written, rewritten)
+    }
 }

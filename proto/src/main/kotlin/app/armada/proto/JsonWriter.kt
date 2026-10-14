@@ -52,9 +52,22 @@ object JsonWriter {
 
     fun writeString(str: String, sb: StringBuilder) {
         sb.append('"')
-        for (i in 0 until str.length) {
+        var i = 0
+        while (i < str.length) {
             val ch = str[i]
             when {
+                ch in '\uD800'..'\uDBFF' -> {
+                    if (i + 1 < str.length && str[i + 1] in '\uDC00'..'\uDFFF') {
+                        sb.append(ch)
+                        sb.append(str[i + 1])
+                        i++
+                    } else {
+                        throw JsonException("Lone high surrogate", position = i)
+                    }
+                }
+                ch in '\uDC00'..'\uDFFF' -> {
+                    throw JsonException("Lone low surrogate", position = i)
+                }
                 ch == '"' -> sb.append("\\\"")
                 ch == '\\' -> sb.append("\\\\")
                 ch == '\b' -> sb.append("\\b")
@@ -67,6 +80,7 @@ object JsonWriter {
                 ch == '\u2029' -> sb.append("\\u2029")
                 else -> sb.append(ch)
             }
+            i++
         }
         sb.append('"')
     }

@@ -9,6 +9,7 @@ The Armada wire protocol defines communication between clients (the Android UI a
 ## 1. Framing and Transport
 
 - **Encoding:** Strict UTF-8. Malformed UTF-8 sequences are rejected as framing errors.
+- **Surrogates:** Encoders reject lone surrogates.
 - **Framing:** Line-delimited. Each frame is a single UTF-8 line terminated by `\n` (0x0A) or optional `\r\n` (0x0D 0x0A).
 - **Line Contents:** A single compact JSON object. No raw newline characters may appear within a frame.
 - **Blank Lines:** Empty or whitespace-only lines are ignored by the reader.
