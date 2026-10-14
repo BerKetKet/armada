@@ -12,6 +12,10 @@ import android.widget.TextView
 
 class MainActivity : Activity() {
 
+    companion object {
+        private const val TAG = "ArmadaApp"
+    }
+
     private lateinit var statusTitleView: TextView
     private lateinit var statusDetailView: TextView
 
@@ -71,16 +75,26 @@ class MainActivity : Activity() {
 
     private fun queryDaemonStatus(): DaemonStatus {
         val socket = LocalSocket()
-        return try {
+        val status = try {
             socket.connect(LocalSocketAddress(DaemonClassifier.SOCKET_NAME))
             socket.soTimeout = 1000
-            val status = DaemonClassifier.classifyStreams(socket.inputStream, socket.outputStream)
+            val s = DaemonClassifier.classifyStreams(socket.inputStream, socket.outputStream)
             socket.close()
-            status
+            s
         } catch (e: Throwable) {
+            android.util.Log.e(TAG, "daemon connect failed", e)
             try { socket.close() } catch (ignored: Exception) {}
             DaemonStatus.Unreachable(e.javaClass.simpleName)
         }
+
+        val statusLine = when (status) {
+            is DaemonStatus.Connected -> "status=Connected version=${status.version}"
+            is DaemonStatus.Denied -> "status=Denied"
+            is DaemonStatus.Unreachable -> "status=Unreachable exception=${status.exceptionClass}"
+        }
+        android.util.Log.i(TAG, statusLine)
+
+        return status
     }
 
     private fun updateUi(status: DaemonStatus) {
