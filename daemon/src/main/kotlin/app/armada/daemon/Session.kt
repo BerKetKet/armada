@@ -51,19 +51,19 @@ class Session(
     }
 
     private fun performHandshake(): Boolean {
-        // On connect, the daemon sends {"type":"hello","v":1} first.
-        try {
-            send(Message.Hello(Protocol.VERSION))
-        } catch (e: Exception) {
-            return false
-        }
-
-        // If the peer is not root, send the denied handshake error and close, before any other frame is read.
+        // If the peer is not root, send only the denied handshake error and close, before any other frame is read.
         if (!peerIsRoot) {
             try {
                 send(Message.Failure(id = Protocol.HANDSHAKE_ID, code = Protocol.DENIED, message = "peer is not root"))
             } catch (ignored: Exception) {
             }
+            return false
+        }
+
+        // On connect with a root peer, the daemon sends {"type":"hello","v":1} first.
+        try {
+            send(Message.Hello(Protocol.VERSION))
+        } catch (e: Exception) {
             return false
         }
 

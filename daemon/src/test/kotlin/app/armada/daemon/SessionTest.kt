@@ -129,18 +129,13 @@ class SessionTest {
     fun nonRootPeerGetsDeniedOnTheHandshakeIdThenTheStreamIsClosedAndNoRequestIsProcessed() {
         val (conn, thread) = startSession(peerIsRoot = false)
         try {
-            val serverHello = conn.readFromServer()
-            assertNotNull(serverHello)
-
-            // Client attempts to send request right away
-            conn.sendFromClient("""{"type":"request","id":"r1","tool":"echo","args":{"text":"root?"}}""")
-
-            val err = conn.readFromServer()
-            assertNotNull(err)
-            val res = Messages.decode(err!!)
+            val firstFrame = conn.readFromServer()
+            assertNotNull(firstFrame)
+            val res = Messages.decode(firstFrame!!)
             assertTrue(res is Message.Failure)
             assertEquals(Protocol.HANDSHAKE_ID, (res as Message.Failure).id)
             assertEquals(Protocol.DENIED, res.code)
+            assertEquals("peer is not root", res.message)
 
             thread.join(2000)
             assertTrue(!thread.isAlive)
